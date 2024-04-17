@@ -1,0 +1,27 @@
+ENV_NAME: 'fancy/AirHockey-3dof-hit-v0'
+
+# Preference selection settings:
+
+allowEditing: True
+allowSkipping: False
+allowTies: False
+
+debugMode: True #Shows rewards
+
+# Database settings:
+DATABASE_FOLDER: 'data/db'
+
+RESULT_FILE: 'result.txt'
+
+
+# Video settings:
+
+VIDEO_FOLDER: 'src/frontend/static' # folder used to temporarily store trajectory videos
+FRAME_RATE: 50 # depends on your env
+RUN_SPEED_FACTOR: 1.0 # regulates the speed of the videos
+
+# Queue settings
+MAX_QUEUE_SIZE: 3 # proportional to the amount of videos on the harddrive simultaneously
+
+#Other
+MAX_ENTRIES: 3 # the number of entries the database should be populated with if the main method is called

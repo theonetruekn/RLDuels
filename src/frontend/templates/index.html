@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Next Stage</title>
+    <link rel="stylesheet" href="../static/PreferenceSelection.css">
+    <script src="https://unpkg.com/htmx.org@1.9.9"> </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider/distribute/nouislider.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/nouislider/distribute/nouislider.min.js">
+    </script>
+</head>
+
+    
+<body>
+
+    <div id="main-gui">
+        <section class="hero">
+            <div class="hero-container">
+                <h1>Select the better option.</h1>
+            </div>
+        </section>
+
+        <div id="video-container">
+            <div class="video-slider-pair">
+                <video id="video1" width="640" height="480" controls>
+                    <source src="{{ url_for('static', filename='video1.mp4') }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                {% if config.debugMode %}
+                <div class="reward" id="reward1">0</div>
+                {% endif %}
+                <div id="slider-container1" class="slider-container">
+                    <div id="slider1" class="slider"></div>
+                </div>
+            </div>
+            <div class="video-slider-pair">
+                <video id="video2" width="640" height="480" controls>
+                    <source src="{{ url_for('static', filename='video2.mp4') }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                {% if config.debugMode %}
+                <div class="reward" id="reward2">0</div>
+                {% endif %}
+                <div id="slider-container2" class="slider-container">
+                    <div id="slider2" class="slider"></div>
+                </div>
+            </div>
+        </div>
+        
+
+        {% if config.allowEditing %}
+        <div id="checkboxes">
+            <input type="checkbox" id="trimming-checkbox" name="Trim videos">
+            <label for="allowTies-checkbox">Trim videos</label>
+        </div>
+        {% endif %}
+        
+        <div class="button-container">
+            <button id="buttonTrim" onclick="handleTrimButtonClick()" style="display: none;">Trim Video</button>
+
+            <button id="buttonLeft" class="preference-button" data-button-name="left" hx-post="/update_preference" hx-trigger="click" hx-vals='{"preference": "video1"}' hx-headers='{"Content-Type": "application/json"}' hx-swap="none">Left video</button>
+
+            {% if config.allowTies %}
+            <button id="buttonEqual" class="preference-button" data-button-name="equal" hx-post="/update_preference" hx-trigger="click" hx-vals='{"preference": "equal"}' hx-headers='{"Content-Type": "application/json"}' hx-swap="none">Equal</button>
+            {% endif %}
+
+            <button id="buttonRight" class="preference-button" data-button-name="right" hx-post="/update_preference" hx-trigger="click" hx-vals='{"preference": "video2"}' hx-headers='{"Content-Type": "application/json"}' hx-swap="none">Right video</button>
+
+        </div>
+        
+        
+        <div class="skipping-button-container">
+            {% if config.allowSkipping %}
+            <button id="skippingButton" class="hover-button" data-button-name="skip">Skip</button>
+            {% endif %}
+        </div>
+
+
+        <div class="shutdown-button-container">
+            <img id="shutdownbtn" src="../static/exit.png" alt="Next Stage" hx-post="/terminate" hx-trigger="click" hx-confirm="Are you sure you want to terminate the web server?" />    
+        </div>
+        <div class="next-video-button-container">
+            <button id="nextVideoButton" onclick="get_new_videos()">Next Video</button>
+        </div>
+          
+    </div>
+
+    <!-- Scripts -->
+
+    <script>
+
+    function get_new_videos() {
+    fetch('/get_current_video_pair')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.video1 && data.video2) {
+                console.log(data.video1)
+                console.log(data.video2)
+                const video1Source = document.querySelector('#video1 source');
+                const video2Source = document.querySelector('#video2 source');
+                
+                video1Source.setAttribute('src', `/static/${data.video1}`);
+                video2Source.setAttribute('src', `/static/${data.video2}`);
+
+                document.getElementById('video1').load();
+                document.getElementById('video2').load();
+            }
+            updateRewards();
+        })
+        .catch(error => {
+            console.error('Error fetching new videos:', error);
+        });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    get_new_videos();
+});
+
+function updateRewards() {
+    fetch('/get_rewards_for_trajectories')
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.reward1 && data.reward2) {
+            document.getElementById('reward1').textContent = data.reward1;
+            document.getElementById('reward2').textContent = data.reward2;
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching rewards:', error);
+    });
+}
+
+
+
+
+function initializeSliders() {
+        var video1 = document.getElementById('video1');
+        var video2 = document.getElementById('video2');
+
+        if (video1 && video2) {
+            var slider1 = document.getElementById('slider1');
+            var slider2 = document.getElementById('slider2');
+
+            noUiSlider.create(slider1, {
+                start: [0, video1.duration],
+                connect: true,
+                range: {
+                    'min': 0,
+                    'max': video1.duration
+                }
+            });
+            slider1.noUiSlider.on('slide', function(values, handle){
+                video1.currentTime = parseFloat(values[handle]);
+                // Sync slider2 with slider1
+                slider2.noUiSlider.set(values);
+            });
+
+            noUiSlider.create(slider2, {
+                start: [0, video2.duration],
+                connect: true,
+                range: {
+                    'min': 0,
+                    'max': video2.duration
+                }
+            });
+            slider2.noUiSlider.on('slide', function(values, handle){
+                video2.currentTime = parseFloat(values[handle]);
+                // Sync slider1 with slider2
+                slider1.noUiSlider.set(values);
+            });
+        }
+    }
+
+
+    function handleTrimButtonClick() {
+    const trimmedData = get_trimmed_videos();
+    sendTrimmedVideoData(trimmedData)
+        .then(() => {
+            // After the AJAX call is successful, uncheck the checkbox
+            document.getElementById('trimming-checkbox').checked = false;
+            toggleSlidersAndTrimButton();
+            toggleAllButtonVisibility();
+        })
+        .catch(error => {
+            console.error('Error sending trimmed video data:', error);
+        });
+}
+
+
+
+    
+function get_trimmed_videos() {
+    const slider1 = document.getElementById('slider1').noUiSlider;
+    const slider2 = document.getElementById('slider2').noUiSlider;
+    const video1_values = slider1.get();
+    const video2_values = slider2.get();
+    
+    const trimmed_videos = {
+        video1_start: parseFloat(video1_values[0]),
+        video1_end: parseFloat(video1_values[1]),
+        video2_start: parseFloat(video2_values[0]),
+        video2_end: parseFloat(video2_values[1])
+    };
+
+    
+    return JSON.stringify(trimmed_videos);
+}
+
+function sendTrimmedVideoData(trimmedData) {
+    return fetch('/get_trimmed_timestamps', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: trimmedData
+    });
+}
+
+
+    
+        // Toggle sliders and the Trim button based on the checkbox state
+        function toggleSlidersAndTrimButton() {
+        var checkbox = document.getElementById('trimming-checkbox');
+        var sliderContainers = document.querySelectorAll('.slider-container');
+        var trimButton = document.getElementById('buttonTrim');
+    
+        sliderContainers.forEach(function(container) {
+            container.style.display = checkbox.checked ? 'block' : 'none';
+        });
+    
+        if(trimButton) {
+            trimButton.style.display = checkbox.checked ? 'block' : 'none';
+        }
+    }
+    
+        // Toggle visibility of all buttons based on checkbox state
+        function toggleAllButtonVisibility() {
+        var checkbox = document.getElementById('trimming-checkbox');
+        var buttons = document.querySelectorAll('.button-container button, .skipping-button-container button');
+        
+        buttons.forEach(function(button) {
+            button.hidden = checkbox.checked;
+        });
+    }
+    
+        // Add the event listener for the checkbox to control sliders and buttons
+        document.addEventListener('DOMContentLoaded', function() {
+        var checkbox = document.getElementById('trimming-checkbox');
+        
+        if(checkbox) {
+            checkbox.addEventListener('change', function() {
+                toggleSlidersAndTrimButton();
+                toggleAllButtonVisibility();
+            });
+        }
+
+        // Initialize sliders after the videos' metadata is loaded
+        var video1 = document.getElementById('video1');
+        var video2 = document.getElementById('video2');
+
+        Promise.all([
+            new Promise(resolve => { if(video1.readyState >= 1) { resolve(); } else { video1.onloadedmetadata = resolve; } }),
+            new Promise(resolve => { if(video2.readyState >= 1) { resolve(); } else { video2.onloadedmetadata = resolve; } })
+        ]).then(function() {
+            initializeSliders();
+        });
+    });
+    
+        // Hover effect for buttons
+        let hoveredButton = null;
+        let hoverTimeout = null;
+        const buttons = document.querySelectorAll('.preference-button');
+    
+        buttons.forEach(function(button) {
+            button.addEventListener('mouseover', function() { handleMouseOver(button.id); });
+            button.addEventListener('mouseout', handleMouseOut);
+        });
+    
+        function handleMouseOver(buttonId) {
+            if (hoverTimeout) {
+                clearTimeout(hoverTimeout);
+            }
+            hoverTimeout = setTimeout(function() {
+                hoveredButton = buttonId;
+                updateButtonStyles();
+            }, 300);
+        }
+    
+        function handleMouseOut() {
+            if (hoverTimeout) {
+                clearTimeout(hoverTimeout);
+            }
+            hoveredButton = null;
+            updateButtonStyles();
+        }
+    
+        function updateButtonStyles() {
+            buttons.forEach(function(button) {
+                switch (hoveredButton) {
+                    case 'skippingButton':
+                        button.style.backgroundColor = button.id === 'skippingButton' ? '#636363' : '#ff6666';
+                        break;
+                    case 'buttonEqual':
+                        button.style.backgroundColor = button.id === 'buttonEqual' ? '#ffb233' : '#ff6666';
+                        break;
+                    case 'buttonLeft':
+                        button.style.backgroundColor = button.id === 'buttonLeft' ? '#56a93c' : '#ff6666';
+                        break;
+                    case 'buttonRight':
+                        button.style.backgroundColor = button.id === 'buttonRight' ? '#56a93c' : '#ff6666';
+                        break;
+                    default:
+                        button.style.backgroundColor = '#86cc70';
+                }
+            });
+        }
+    
+        window.addEventListener('beforeunload', function() {
+            if (hoverTimeout) {
+                clearTimeout(hoverTimeout);
+            }
+        });
+    </script>
+    
+    
+</body>
+</html>
