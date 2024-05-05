@@ -5,5 +5,3 @@ opencv-python-headless
 PyYAML
 flask
 flask_cors
-fancy_gym
-

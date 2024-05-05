@@ -38,7 +38,7 @@ class Simulator():
         frames = []
         transitions = []
         rng = np.random.default_rng(seed)
-        observation, info = self.env.reset(seed = seed)
+        observation, info = self.env.reset(seed = int(seed))
         initial_condition = {'seed': [seed]}
 
         # flooring necessary, as run_speed_factor is float 
@@ -59,7 +59,7 @@ class Simulator():
 
             if terminated or truncated:
                 seed = rng.integers(0, 100)
-                self.env.reset(seed = seed)
+                self.env.reset(seed = int(seed))
                 initial_condition['seed'].append(seed)
 
         return frames, Trajectory(initial_condition, transitions)
@@ -68,7 +68,7 @@ class Simulator():
         frames = []
         transitions = []
         rng = np.random.default_rng(seed)
-        observation, _ = self.env.reset(seed = seed)
+        observation, _ = self.env.reset(seed = int(seed))
         initial_condition = {'seed': None}
 
         # flooring necessary, as run_speed_factor is float 

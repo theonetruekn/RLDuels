@@ -1,4 +1,4 @@
-ENV_NAME: 'fancy/AirHockey-3dof-hit-v0'
+ENV_NAME: 'CartPole-v1'
 
 # Preference selection settings:
 
@@ -9,7 +9,7 @@ allowTies: False
 debugMode: True #Shows rewards
 
 # Database settings:
-DATABASE_FOLDER: 'data/db'
+DATABASE_FOLDER: '/home/student/Code/RLDuels/rlduels/data/db'
 
 RESULT_FILE: 'result.txt'
 

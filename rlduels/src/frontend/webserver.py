@@ -7,7 +7,6 @@ import shutil
 import yaml
 import traceback
 import subprocess
-import fancy_gym
 import gymnasium as gym
 
 from flask import Flask, jsonify, request, render_template
@@ -49,7 +48,7 @@ Functions:
 
 The web server provides a user-friendly interface for interacting with trajectory pairs, enabling users to view, evaluate, and provide feedback on RL-generated trajectories.
 """
-CONFIG_PATH = '../../../config.yaml'
+CONFIG_PATH = 'config.yaml'
 with open(CONFIG_PATH, 'r') as config_file:
     config = yaml.safe_load(config_file)
 
@@ -85,9 +84,7 @@ def initialize_app(pairs):
     if pairs is None:
         env = gym.make(
             ENV,
-            render_mode="rgb_array", 
-            width=600, 
-            height=400
+            render_mode="rgb_array"
         )
         simulator = Simulator(env = env, agent = None, frame_rate = FRAME_RATE, run_speed_factor = RUN_SPEED_FACTOR)
         video_streamer = VideoStreamer(db_manager=db_manager, simulator=simulator, seed=420)
@@ -101,9 +98,7 @@ def initialize_app(pairs):
     video_extractor = VideoExtractor(
         gym.make(
             ENV,
-            render_mode="rgb_array", 
-            width=600, 
-            height=400
+            render_mode="rgb_array"
         ),
         VIDEO_FOLDER,
         FRAME_RATE, 

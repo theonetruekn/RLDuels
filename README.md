@@ -1,4 +1,4 @@
-# RLArena
+# RLDuels
 
 This projects builds upon the [fancy_gym](https://github.com/ALRhub/fancy_gym) library and aims to provide a framework for researchers to collect human feed back for preference-based RL efficiently.
 
