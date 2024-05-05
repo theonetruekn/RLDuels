@@ -28,3 +28,10 @@ git clone git@github.com:theonetruekn/RLDuels.git
 cd RLDuels
 pip install -e .
 ```
+
+## Roadmap
+- Store identifiable attributes of each TrajectoryPair separately in a structured way within the database, and using these attributes for querying rather than the entire object.
+- Migrate from Flask to FastAPI or Django
+- use pickle for serialization
+- validated parallelizability
+- write demo for easier onboarding
