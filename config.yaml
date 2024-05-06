@@ -1,5 +1,3 @@
-ENV_NAME: 'CartPole-v1'
-
 # Preference selection settings:
 
 allowEditing: True
@@ -16,7 +14,8 @@ RESULT_FILE: 'result.txt'
 
 # Video settings:
 
-VIDEO_FOLDER: 'src/frontend/static' # folder used to temporarily store trajectory videos
+#VIDEO_FOLDER: 'src/frontend/static' # folder used to temporarily store trajectory videos
+VIDEO_FOLDER: "/home/student/Code/RLDuels"
 FRAME_RATE: 50 # depends on your env
 RUN_SPEED_FACTOR: 1.0 # regulates the speed of the videos
 

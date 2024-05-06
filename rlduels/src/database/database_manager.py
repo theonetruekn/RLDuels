@@ -5,12 +5,13 @@ import shutil
 import yaml
 import json
 import logging
+import time
 
 from abc import ABC, abstractmethod
 from pymongo import MongoClient, errors
 from typing import Tuple, Optional, List
 
-from rlduels.src.DataHandling.trajectory_pair import Transition, Trajectory, TrajectoryPair
+from rlduels.src.primitives.trajectory_pair import Transition, Trajectory, TrajectoryPair
 
 CONFIG_PATH = 'config.yaml'
 with open(CONFIG_PATH, 'r') as config_file:
@@ -61,7 +62,7 @@ class MongoDBManager(DBManager):
             process = subprocess.Popen(
                 ["mongod", "--port", "27017", "--dbpath", DB_FOLDER],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE  # Capture stderr to log if there's an error
+                stderr=subprocess.PIPE
             )
             
             time.sleep(0.5)
@@ -88,6 +89,33 @@ class MongoDBManager(DBManager):
             return None, "Connection to DB could not be made."
         except Exception as e:
             return None, f"Not added successfully to db: {e}"
+
+    def delete_entry(self, trajectory_pair: TrajectoryPair) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Deletes a trajectory pair entry in the database using its UUID.
+
+        Args:
+            trajectory_pair (TrajectoryPair): The trajectory pair whose entry is to be deleted.
+
+        Returns:
+            Tuple[Optional[str], Optional[str]]: Success message or error message.
+        """
+        try:
+            # Extract the UUID from the TrajectoryPair
+            trajectory_id = str(trajectory_pair.id)
+
+            # Attempt to delete the entry from the database
+            result = self.collection.delete_one({'_id': trajectory_id})
+
+            if result.deleted_count > 0:
+                return f"Entry with ID {trajectory_id} successfully deleted.", None
+            else:
+                return None, f"No entry found with ID {trajectory_id}."
+
+        except errors.ConnectionFailure:
+            return None, "Connection to DB could not be made."
+        except Exception as e:
+            return None, f"Error deleting the entry: {str(e)}"
     
     def find_entry(self, trajectory_pair: TrajectoryPair) -> Optional[TrajectoryPair]:
         """

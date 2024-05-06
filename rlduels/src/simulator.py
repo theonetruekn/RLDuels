@@ -16,7 +16,7 @@ class Simulator():
         self.frame_rate = frame_rate
         self.run_speed_factor = run_speed_factor
 
-    def simulate_for_n_seconds(self, seconds: int = 10, seed=42) -> Tuple[List[np.ndarray], Trajectory]:
+    def simulate_for_n_seconds(self, n: int = 10, seed=42) -> Tuple[List[np.ndarray], Trajectory]:
         """
         Simulates the environment for a specified number of seconds and records the state transitions and frames.
 
@@ -26,7 +26,7 @@ class Simulator():
         it is reset with a new seed. The seeds are captured such that a trajectory can be reconstructed.
 
         Parameters:
-        - seconds (int, optional): The duration, in seconds, for which to run the simulation. Defaults to 10 seconds.
+        - n (int, optional): The duration, in seconds, for which to run the simulation. Defaults to 10 seconds.
         - seed (int, optional): The seed for the random number generator, ensuring reproducibility. Defaults to 42.
 
         Returns:
@@ -42,7 +42,7 @@ class Simulator():
         initial_condition = {'seed': [seed]}
 
         # flooring necessary, as run_speed_factor is float 
-        max_frames = math.floor(seconds * self.frame_rate * self.run_speed_factor)
+        max_frames = math.floor(n * self.frame_rate * self.run_speed_factor)
 
         for _ in range(max_frames):
             frames.append(self.env.render())

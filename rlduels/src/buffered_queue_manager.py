@@ -5,9 +5,9 @@ import copy
 
 from typing import Tuple
 
-from src.DataHandling.trajectory_pair import Trajectory, TrajectoryPair
-from src.DataHandling.database_manager import DBManager
-from src.DataHandling.video_extractor import VideoExtractor
+from src.primitives.trajectory_pair import Trajectory, TrajectoryPair
+from src.database.database_manager import DBManager
+from src.video_extractor import VideoExtractor
 
 class BufferedQueueManager():
     """

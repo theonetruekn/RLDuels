@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator,  root_validator
 from typing import Generic, TypeVar, Union, Optional, List
 from uuid import UUID, uuid4
 from pathlib import Path
@@ -33,7 +33,8 @@ class Transition(BaseModel):
     next_state: NDArray
 
 class Trajectory(BaseModel):
-    env: str
+    env_name: str
+    information: dict
     transitions: List[Transition]
 
     def get_reward(self):
@@ -43,11 +44,19 @@ class TrajectoryPair(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     trajectory1: Trajectory
     trajectory2: Trajectory
+    env_name: str = Optional[None]
     preference: Union[int, float, None] = None
     skipped: bool = False
     video1: Optional[Path] = None
     video2: Optional[Path] = None
   
+    @root_validator(pre=True)  # pre=True ensures this runs after individual field validators
+    def set_env_name(cls, values):
+        trajectory1 = values.get('trajectory1')
+        if trajectory1:
+            values['env_name'] = trajectory1.env_name
+        return values
+
     @classmethod
     def from_db(cls, data: dict):
         data['id'] = UUID(data['id'])
@@ -59,7 +68,7 @@ class TrajectoryPair(BaseModel):
 
     @validator('trajectory2')
     def check_same_environment(cls, v, values):
-        if 'trajectory1' in values and v.env != values['trajectory1'].env:
+        if 'trajectory1' in values and v.env_name != values['trajectory1'].env_name:
             raise ValueError("Environment of trajectory1 and trajectory2 must be identical")
         return v
 

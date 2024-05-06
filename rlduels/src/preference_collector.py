@@ -20,12 +20,12 @@ with open(CONFIG_PATH, 'r') as config_file:
 
 RESULT_FILE = config["RESULT_FILE"]
 
-class Adapter(ABC):
+class PreferenceCollector(ABC):
     
     def __init__(self):
         pass
 
-    def run(self, **kwargs):
+    def start_collecting(self, **kwargs):
         traj_pairs = self.parse_inputs(**kwargs)
 
         assert all(isinstance(pair, TrajectoryPair) for pair in traj_pairs), "All elements in traj_pairs must be of type TrajectoryPair"

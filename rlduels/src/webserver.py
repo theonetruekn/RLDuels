@@ -53,7 +53,6 @@ with open(CONFIG_PATH, 'r') as config_file:
     config = yaml.safe_load(config_file)
 
 # Constants
-ENV = config['ENV_NAME']
 VIDEO_FOLDER = config['VIDEO_FOLDER']
 FRAME_RATE = config['FRAME_RATE']
 RUN_SPEED_FACTOR = config['RUN_SPEED_FACTOR']
@@ -66,11 +65,8 @@ db_manager = None
 simulator = None
 video_streamer = None
 video_extractor = None
-env = None
 buffered_queue = None
 current_entry = None
-result = []
-
 
 app = Flask(__name__)
 CORS(app)
