@@ -21,16 +21,39 @@ class NDArray(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         json_encoders = {
-            np.ndarray: lambda x: x.tolist()  # Still providing a JSON encoder if needed
+            np.ndarray: lambda x: x.tolist()
         }
 
 class Transition(BaseModel):
     state: NDArray
     action: NDArray
+    next_state: NDArray
     reward: Union[int, float]
     terminated: bool
     truncated: bool
-    next_state: NDArray
+
+    def get_state(self) -> np.ndarray:
+        return self.state.array
+
+    def get_action(self) -> np.ndarray:
+        return self.action.array
+
+    def get_next_state(self) -> np.ndarray:
+        return self.next_state.array
+
+    @staticmethod
+    def create(state, action, next_state, reward, terminated, truncated):
+        return Transition(
+            state=NDArray(array=state),
+            action=NDArray(array=action),
+            next_state=NDArray(array=next_state),
+            reward=reward,
+            terminated=terminated,
+            truncated=truncated
+        )
+
+    def unpack(self):
+        return (self.get_state(), self.get_action(), self.reward, self.terminated, self.truncated, self.get_next_state())
 
 class Trajectory(BaseModel):
     env_name: str

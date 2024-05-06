@@ -18,6 +18,8 @@ with open(CONFIG_PATH, 'r') as config_file:
     config = yaml.safe_load(config_file)
 
 video_folder = config["VIDEO_FOLDER"]
+frame_rate = config["FRAME_RATE"]
+run_speed_factor = config["RUN_SPEED_FACTOR"]
 
 env_pool = {}
 
@@ -35,7 +37,7 @@ def create_video_from_pair(trajectory_pair: TrajectoryPair):
     env_name = trajectory_pair.env_name
     if env_name not in env_pool.keys():
         print("Creating env!")
-        env_pool[env_name] =  GymWrapper.create_env(name = env_name)
+        env_pool[env_name] =  GymWrapper.create_env(name = env_name, render_mode="rgb_array")
         print(env_pool)
         print("Env created")
     
@@ -45,6 +47,7 @@ def create_video_from_pair(trajectory_pair: TrajectoryPair):
     t2: Trajectory = trajectory_pair.trajectory2
 
     frames1 = _recreate_frames_from_trajectory(t1, env)
+    print("Frames1:", frames1)
     frames2 = _recreate_frames_from_trajectory(t2, env)
 
     file1: Path = generate_video_from_frames(frames1)
@@ -106,18 +109,17 @@ def _recreate_frames_from_trajectory(trajectory: Trajectory, env: EnvWrapper) ->
 def _recreate_frames_from_trajectory_with_seed(trajectory: Trajectory, env: EnvWrapper) -> List[np.ndarray]:
     information = trajectory.information
     transitions = trajectory.transitions
-    seeds = information['seed']
-    env.reset(seed=seeds[0])
+    seed = information['seed']
+    env.reset(seed=seed)
     frames = []
     ctr = 0
-    for state, action, _, terminated, truncated, _ in transitions:
-        print("Action: ", action, "\ntype: ", type(action))
+    for t in transitions:
+        state, action, _, terminated, truncated, _ = t.unpack()
+        print("action: ", action)
         env.step(action) 
         frames.append(env.render())
 
         if terminated or truncated:
-            ctr += 1
-            seed = seeds[ctr]
             env.reset(seed=seed)
 
     return frames

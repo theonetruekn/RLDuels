@@ -101,10 +101,8 @@ class MongoDBManager(DBManager):
             Tuple[Optional[str], Optional[str]]: Success message or error message.
         """
         try:
-            # Extract the UUID from the TrajectoryPair
             trajectory_id = str(trajectory_pair.id)
 
-            # Attempt to delete the entry from the database
             result = self.collection.delete_one({'_id': trajectory_id})
 
             if result.deleted_count > 0:
