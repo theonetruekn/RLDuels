@@ -1,3 +1,6 @@
+#TODO: Refactor
+#TODO: Migrate to FastAPI!
+
 import sys
 import os
 import signal

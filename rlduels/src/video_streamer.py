@@ -1,3 +1,5 @@
+#TODO: Refactor
+
 from src.DataHandling.trajectory_pair import Trajectory, TrajectoryPair
 from src.DataHandling.simulator import Simulator
 from src.DataHandling.database_manager import DBManager
