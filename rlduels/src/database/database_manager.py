@@ -21,7 +21,7 @@ DB_FOLDER = config["DATABASE_FOLDER"]
 
 class DBManager(ABC):
 
-    def __init__(self, Debug=True):
+    def __init__(self, debug=True):
         pass
     
     @abstractmethod
@@ -46,13 +46,17 @@ class DBManager(ABC):
 
 class MongoDBManager(DBManager):
 
-    def __init__(self, debug=True):
+    def __init__(self, debug=True, test=False, client=None):
         """
         Initializes the DBManager with a MongoDB client and sets up the database and collection.
         """
         self.debug = debug
         self.mongod_process = self.start_db()
-        self.client = MongoClient("localhost", 27017)
+        if test:
+            self.client = client
+        else:
+            print("...")
+            self.client = MongoClient("localhost", 27017)
         self.db = self.client['database']
         self.collection = self.db.videos
         self.id_of_current_video = None
@@ -178,25 +182,29 @@ class MongoDBManager(DBManager):
         Returns:
             Tuple[Optional[TrajectoryPair], Optional[str]]: The next trajectory pair if available, and None or error message otherwise.
         """
-        try:
-            base_query = {"preference": None, "skipped": False}
+        #try:
+        logging.debug("Getting next entry.")
+        base_query = {"preference": None, "skipped": False}
 
-            if self.id_of_current_video is not None:
-                base_query["_id"] = {"$gt": self.id_of_current_video}
+        if self.id_of_current_video is not None:
+            base_query["_id"] = {"$gt": self.id_of_current_video}
 
-            entry = self.collection.find_one(base_query, sort=[('_id', 1)])
+        entry = self.collection.find_one(base_query, sort=[('_id', 1)])
+        print(type(entry['trajectory1']['transitions'][0]['state']['array']))
+        
+        if entry:
+            logging.debug("Found Entry in DB.")
+            self.id_of_current_video = entry["_id"]
 
-            if entry:
-                self.id_of_current_video = entry["_id"]
-
-                trajectory_pair = parse_obj_as(TrajectoryPair, entry)
-                return trajectory_pair, None
-            else:
-                return None, "No more unprocessed entries found."
-        except errors.ConnectionFailure:
-            return None, "Connection to DB could not be made."
-        except Exception as e:
-            return None, f"An error occurred: {str(e)}"
+            entry['id'] = entry.pop('_id') # Rename as Pydantic expects id, not _id
+            trajectory_pair = TrajectoryPair.from_db(entry)
+            return trajectory_pair, None
+        else:
+            return None, "No more unprocessed entries found."
+        #except errors.ConnectionFailure:
+        #    return None, "Connection to DB could not be made."
+        #except Exception as e:
+        #    return None, f"An error occurred getting the next entry: {str(e)}"
 
     
     def gather_preferences(self) -> List[Tuple[Optional[TrajectoryPair], Optional[float]]]:
@@ -227,27 +235,6 @@ class MongoDBManager(DBManager):
         except Exception as e:
             logging.error(f"Error gathering results from db: {e}")
             return []
-
-    def get_next_entry(self):
-        try:
-            base_query = {"preference": None, "skipped": False}
-
-            # If current_id is set, modify the query to start after that ID
-            if self.id_of_current_video is not None:
-                base_query["_id"] = {"$gt": self.id_of_current_video}
-
-            entry = self.collection.find_one(base_query, sort=[('_id', 1)])
-
-            if entry:
-                self.id_of_current_video = entry["_id"]
-                trajectory_pair = from_bson(entry)
-                return trajectory_pair, None
-            else:
-                return None, "No more unprocessed entries found."
-        except errors.ConnectionFailure:
-            return None, "Connection to DB could not be made."
-        except Exception as e:
-            return None, str(e)
 
     def close_db(self):
         self.mongod_process.terminate()
