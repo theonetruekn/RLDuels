@@ -1,6 +1,7 @@
 import datetime
 import math
 import time
+import logging
 
 import cv2
 import gymnasium as gym
@@ -24,7 +25,7 @@ run_speed_factor = config["RUN_SPEED_FACTOR"]
 env_pool = {}
 
 
-def create_video_from_pair(trajectory_pair: TrajectoryPair):
+def create_videos_from_pair(trajectory_pair: TrajectoryPair):
     """
     Generates videos for a pair of trajectories.
 
@@ -34,6 +35,8 @@ def create_video_from_pair(trajectory_pair: TrajectoryPair):
     Returns:
     tuple: A tuple containing file paths for the two generated videos.
     """
+    
+
     env_name = trajectory_pair.env_name
     if env_name not in env_pool.keys():
         print("Creating env!")
@@ -53,7 +56,10 @@ def create_video_from_pair(trajectory_pair: TrajectoryPair):
     file1: Path = generate_video_from_frames(frames1)
     file2: Path = generate_video_from_frames(frames2)
 
-    return file1, file2
+    trajectory_pair.video1 = file1
+    trajectory_pair.video2 = file2
+
+    return "Success."
 
 def generate_video_from_frames(frames: List[np.ndarray], file_name: str = "trajectory", add_timestamp: bool = True) -> str:
     '''
@@ -112,11 +118,10 @@ def _recreate_frames_from_trajectory_with_seed(trajectory: Trajectory, env: EnvW
     seed = information['seed']
     env.reset(seed=seed)
     frames = []
-    ctr = 0
     for t in transitions:
         state, action, _, terminated, truncated, _ = t.unpack()
-        print("action: ", action)
-        env.step(action) 
+        logging.debug(f"action: {action}, type: {type(action)}")
+        env.step(int(action)) 
         frames.append(env.render())
 
         if terminated or truncated:
