@@ -3,13 +3,13 @@
 import queue
 import threading
 import time
-import copy
+import logging
 
 from typing import Tuple
 
-from src.primitives.trajectory_pair import Trajectory, TrajectoryPair
-from src.database.database_manager import DBManager
-from src.video_extractor import VideoExtractor
+from rlduels.src.primitives.trajectory_pair import Trajectory, TrajectoryPair
+from rlduels.src.database.database_manager import DBManager
+from rlduels.src.create_video import create_videos_from_pair
 
 class BufferedQueueManager():
     """
@@ -20,22 +20,20 @@ class BufferedQueueManager():
     and stores them in the queue for later retrieval.
     """
 
-    def __init__(self, db_manager: DBManager, video_extractor:VideoExtractor, n: int = 10, sleep_interval: int = 1, daemon = True):
+    def __init__(self, db_manager: DBManager, n: int = 10, sleep_interval: int = 1, daemon = True):
         """
         Initializes the BufferedQueueManager with a database manager, video extractor, queue size, and sleep interval.
 
         Args:
             db_manager (DBManager): An instance of DBManager for database operations.
-            video_extractor (VideoExtractor): An instance of VideoExtractor to generate videos from trajectories.
             n (int): The maximum size of the buffered queue.
             sleep_interval (int): The interval between queue refills in seconds.
         """        
         self.buffered_queue = queue.Queue(maxsize=n)
         self.db_manager: DBManager = db_manager
-        self.video_extractor: VideoExtractor = video_extractor
 
         self.sleep_interval = sleep_interval
-        self.run = True
+        self.is_running = True
 
         self.last_processed_id = None
 
@@ -51,22 +49,17 @@ class BufferedQueueManager():
         """
         Continuously refills the queue with new entries. Runs as a separate thread.
         """
-        while self.run:
+        while self.is_running:
             if self.get_queue_size() < self.get_queue_max():
                 new_entry, error = self.db_manager.get_next_entry()
-                if new_entry is not None:
-                    # for some weird reason, we need to use a copy, else FindPair doesnt work???
-                    entry_copy = copy.deepcopy(new_entry)
-                    video1, video2 = self.video_extractor.generate_video_from_pair(entry_copy)
-                    #video1, video2 = self.video_extractor.generate_video_from_pair(new_entry)
-                    new_entry.set_video1(video1)
-                    new_entry.set_video2(video2)
+                if not error:
+                    create_videos_from_pair(new_entry)
                     self.buffered_queue.put(new_entry)
-                    self.last_processed_id = self.db_manager.id_of_current_video
+                    self.last_processed_id = self.new_entry.id
                 else:
-                    print(f"No entry yet available: {error}")
-                    time.sleep(self.sleep_interval)
-            time.sleep(self.sleep_interval)       
+                    logging.info(f"Couldn't fetch entry: {error}")
+                    time.sleep(self.sleep_interval) #TODO: check if it can be removed
+            time.sleep(self.sleep_interval)
 
     def get_next_entry(self) -> TrajectoryPair:
         """
@@ -102,9 +95,9 @@ class BufferedQueueManager():
         Returns:
             bool: True if the refilling thread is alive, False otherwise.
         """
-        return self.run
+        return self.is_running
     
     def close_routine(self):
-        self.run = False
-        print("Closing queue")
+        self.is_running = False
+        logging.info("Closing queue.")
         self.refilling_thread.join()
