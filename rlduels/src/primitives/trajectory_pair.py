@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from pathlib import Path
 import numpy as np
 import os
-
+# TODO: maybe screw NDArray and make bson?
 class NDArray(BaseModel):
     array: np.ndarray
 
@@ -12,6 +12,11 @@ class NDArray(BaseModel):
     def convert_to_nparray(cls, v):
         if isinstance(v, np.ndarray):
             return v
+        elif isinstance(v, dict):
+            if 'array' in v:
+                return v['array']
+            else:
+                raise ValueError("Dictionary must contain an 'array' key with np.ndarray")
         try:
             converted = np.array(v)
             return converted
@@ -27,10 +32,10 @@ class NDArray(BaseModel):
 class Transition(BaseModel):
     state: NDArray
     action: NDArray
-    next_state: NDArray
     reward: Union[int, float]
     terminated: bool
     truncated: bool
+    next_state: NDArray
 
     def get_state(self) -> np.ndarray:
         return self.state.array
@@ -52,6 +57,17 @@ class Transition(BaseModel):
             truncated=truncated
         )
 
+    @classmethod
+    def from_dict(cls, data: dict):
+        state = NDArray(array=data['state']['array'])
+        action = NDArray(array=data['action']['array'])
+        next_state = NDArray(array=data['next_state']['array'])
+        reward = data.get('reward')
+        terminated = data.get('terminated')
+        truncated = data.get('truncated')
+
+        return cls(state=state, action=action, next_state=next_state, reward=reward, terminated=terminated, truncated=truncated)
+
     def unpack(self):
         return (self.get_state(), self.get_action(), self.reward, self.terminated, self.truncated, self.get_next_state())
 
@@ -60,8 +76,14 @@ class Trajectory(BaseModel):
     information: dict
     transitions: List[Transition]
 
+    @classmethod
+    def from_dict(cls, data: dict):
+        data['transitions'] = [Transition.from_dict(**t) if isinstance(t, dict) else t for t in data.get('transitions', [])]
+        return cls(**data)
+
     def get_reward(self):
         return sum(transition.reward for transition in self.transitions)
+
 
 class TrajectoryPair(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -73,21 +95,25 @@ class TrajectoryPair(BaseModel):
     video1: Optional[Path] = None
     video2: Optional[Path] = None
   
+    @classmethod
+    def from_db(cls, data: dict):
+        data['id'] = UUID(data['id'])
+        if 'video1' in data:
+            data['video1'] = Path(data['video1']) if data['video1'] else None
+        if 'video2' in data:
+            data['video2'] = Path(data['video2']) if data['video2'] else None
+        if 'trajectory1' in data:
+            data['trajectory1'] = Trajectory.from_dict(data['trajectory1'])
+        if 'trajectory2' in data:
+            data['trajectory2'] = Trajectory.from_dict(data['trajectory2'])
+        return cls(**data)
+
     @root_validator(pre=True)  # pre=True ensures this runs after individual field validators
     def set_env_name(cls, values):
         trajectory1 = values.get('trajectory1')
         if trajectory1:
             values['env_name'] = trajectory1.env_name
         return values
-
-    @classmethod
-    def from_db(cls, data: dict):
-        data['id'] = UUID(data['id'])
-        if 'video1' in data:
-            data['video1'] = Path(data['video1'])
-        if 'video2' in data:
-            data['video2'] = Path(data['video2'])
-        return cls(**data)
 
     @validator('trajectory2')
     def check_same_environment(cls, v, values):
