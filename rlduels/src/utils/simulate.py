@@ -1,7 +1,7 @@
 import gymnasium as gym
 from typing import List, Optional
 from rlduels.src.primitives.trajectory_pair import Transition, Trajectory, TrajectoryPair, NDArray
-from rlduels.src.env_wrapper import GymWrapper
+from rlduels.src.env_wrapper import EnvWrapper, GymWrapper
 
 def simulate_trajectories(env: EnvWrapper = GymWrapper.create_env(name="CartPole-v1", render_mode="rgb_array"), n: int =5) ->List[Trajectory]:
 
