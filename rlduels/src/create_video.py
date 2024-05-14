@@ -10,6 +10,7 @@ import yaml
 
 from pathlib import Path
 from typing import Any, List, Tuple
+import pytest
 
 from rlduels.src.primitives.trajectory_pair import Transition, Trajectory, TrajectoryPair
 from rlduels.src.env_wrapper import EnvWrapper, GymWrapper
