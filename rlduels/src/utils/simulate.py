@@ -1,12 +1,11 @@
 import gymnasium as gym
-
+from typing import List, Optional
 from rlduels.src.primitives.trajectory_pair import Transition, Trajectory, TrajectoryPair, NDArray
 from rlduels.src.env_wrapper import GymWrapper
 
-def simulate_trajectories(env="CartPole-v1", n=5):
-    env = GymWrapper.create_env(name=env, render_mode="rgb_array")
+def simulate_trajectories(env: EnvWrapper = GymWrapper.create_env(name="CartPole-v1", render_mode="rgb_array"), n: int =5) ->List[Trajectory]:
 
-    trajectories = []
+    trajectories: List[Trajectory] = []
 
     for episode in range(n):
         seed = 42
@@ -14,7 +13,7 @@ def simulate_trajectories(env="CartPole-v1", n=5):
         total_reward = 0
         done = False
 
-        transitions = []
+        transitions: List[Transition] = []
 
         while not done:
             env.render()
@@ -49,9 +48,9 @@ def simulate_trajectories(env="CartPole-v1", n=5):
 
     return trajectories
 
-def simulate_trajectory_pairs(env="CartPole-v1", n=5):
-    trajectories = simulate_trajectories(env, 2 * n)
-    trajectory_pairs = []
+def simulate_trajectory_pairs(env: EnvWrapper = GymWrapper.create_env(name="CartPole-v1", render_mode="rgb_array"), n: int =5) -> List[TrajectoryPair]:
+    trajectories: List[Trajectory] = simulate_trajectories(env, 2 * n)
+    trajectory_pairs: List[TrajectoryPair] = []
 
     for i in range(0, len(trajectories), 2):
         trajectory_pair = TrajectoryPair(
