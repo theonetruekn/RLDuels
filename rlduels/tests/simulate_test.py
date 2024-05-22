@@ -2,7 +2,7 @@ import gymnasium as gym
 from typing import List, Optional
 from rlduels.src.primitives.trajectory_pair import Transition, Trajectory, TrajectoryPair, NDArray
 from rlduels.src.env_wrapper import GymWrapper, EnvWrapper
-from simulate import simulate_trajectories, simulate_trajectory_pairs
+from rlduels.src.utils.simulate import simulate_trajectories, simulate_trajectory_pairs
 
 def test_simulate_trajectories():
 
