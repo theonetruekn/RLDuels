@@ -4,8 +4,7 @@ from uuid import UUID, uuid4
 from pathlib import Path
 import numpy as np
 import os
-import pytest
-# TODO: maybe screw NDArray and make bson?
+
 class NDArray(BaseModel):
     array: np.ndarray
 

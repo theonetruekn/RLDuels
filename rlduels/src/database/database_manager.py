@@ -1,17 +1,19 @@
-import subprocess
-import numpy as np
-import os
-import shutil
-import yaml
+from abc import ABC, abstractmethod
 import json
 import logging
+import os
+import shutil
+import subprocess
 import time
+from typing import List, Optional, Tuple
 
-from abc import ABC, abstractmethod
+import numpy as np
 from pymongo import MongoClient, errors
-from typing import Tuple, Optional, List
+import yaml
 
-from rlduels.src.primitives.trajectory_pair import Transition, Trajectory, TrajectoryPair
+from rlduels.src.primitives.trajectory_pair import (
+    TrajectoryPair,
+)
 
 CONFIG_PATH = 'config.yaml'
 with open(CONFIG_PATH, 'r') as config_file:
@@ -33,38 +35,34 @@ class DBManager(ABC):
         pass
 
     @abstractmethod
-    def add_entry(self):
+    def add_entry(self, trajectory_pair: TrajectoryPair) -> Tuple[Optional[str], Optional[str]]:
         pass
     
     @abstractmethod
-    def update_entry(self):
+    def update_entry(self, trajectory_pair: TrajectoryPair) -> Tuple[Optional[str], Optional[str]]:
         pass
 
     @abstractmethod
-    def delete_entry(self):
+    def delete_entry(self, trajectory_pair: TrajectoryPair) -> Tuple[Optional[str], Optional[str]]:
         pass
 
     @abstractmethod
-    def get_next_entry(self):
+    def get_next_entry(self) -> Tuple[Optional[TrajectoryPair], Optional[str]]:
         pass
 
     @abstractmethod
-    def gather_preferences(self):
+    def gather_preferences(self) -> List[Tuple[Optional[TrajectoryPair], Optional[float]]]:
         pass
 
 class MongoDBManager(DBManager):
 
-    def __init__(self, debug=True, test=False, client=None):
+    def __init__(self, debug=True, client=MongoClient("localhost", 27017)):
         """
         Initializes the DBManager with a MongoDB client and sets up the database and collection.
         """
         self.debug = debug
         self.mongod_process = self.start_db()
-        if test:
-            self.client = client
-        else:
-            print("...")
-            self.client = MongoClient("localhost", 27017)
+        self.client = client
         self.db = self.client['database']
         self.collection = self.db.videos
         self.id_of_current_video = None

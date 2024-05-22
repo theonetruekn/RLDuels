@@ -7,7 +7,7 @@ from rlduels.src.primitives.trajectory_pair import TrajectoryPair
 @pytest.fixture
 def mock_db():
     client = MongoClient()
-    db_manager = MongoDBManager(client=client, debug=False, test=True)
+    db_manager = MongoDBManager(client=client, debug=False)
     yield db_manager
     db_manager.close_db()
 

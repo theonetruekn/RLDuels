@@ -1,18 +1,14 @@
 import datetime
-import math
-import time
 import logging
 
 import cv2
-import gymnasium as gym
 import numpy as np
 import yaml
 
 from pathlib import Path
-from typing import Any, List, Tuple
-import pytest
+from typing import List
 
-from rlduels.src.primitives.trajectory_pair import Transition, Trajectory, TrajectoryPair
+from rlduels.src.primitives.trajectory_pair import Trajectory, TrajectoryPair
 from rlduels.src.env_wrapper import EnvWrapper, GymWrapper
 
 CONFIG_PATH = 'config.yaml'
@@ -62,7 +58,7 @@ def create_videos_from_pair(trajectory_pair: TrajectoryPair):
 
     return "Success."
 
-def generate_video_from_frames(frames: List[np.ndarray], file_name: str = "trajectory", add_timestamp: bool = True) -> str:
+def generate_video_from_frames(frames: List[np.ndarray], file_name: str = "trajectory", add_timestamp: bool = True) -> Path:
     '''
     Generates a video from a list of frames.
 
@@ -132,7 +128,7 @@ def _recreate_frames_from_trajectory_with_seed(trajectory: Trajectory, env: EnvW
 
 def _recreate_frames_from_trajectory_no_seed(trajectory: Trajectory, env: EnvWrapper) -> List[np.ndarray]:
     
-    _, transitions = trajectory
+    transitions = trajectory.transitions
     frames = []
     starting_state = transitions[0].state
     obs, info = env.reset(obs=starting_state)
