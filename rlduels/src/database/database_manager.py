@@ -137,11 +137,11 @@ class MongoDBManager(DBManager):
             if entry is None:
                 logging.error(f"No entry found for object with id {id}.")
                 return None
-            return TrajectoryPair.parse_obj(entry)
+            entry['id'] = entry.pop('_id')
+            return TrajectoryPair.from_db(entry)
         except Exception as e:
-            logging.error(f"An error occurred tying to find an entry: {e}")
+            logging.error(f"An error occurred parsing the object: {e}")
             return None
-
 
     def update_entry(self, trajectory_pair: TrajectoryPair) -> Tuple[Optional[str], Optional[str]]:
         """
@@ -190,7 +190,6 @@ class MongoDBManager(DBManager):
             base_query["_id"] = {"$gt": self.id_of_current_video}
 
         entry = self.collection.find_one(base_query, sort=[('_id', 1)])
-        print(type(entry['trajectory1']['transitions'][0]['state']['array']))
         
         if entry:
             logging.debug("Found Entry in DB.")
@@ -220,13 +219,13 @@ class MongoDBManager(DBManager):
 
             for doc in documents:
                 try:
-                    trajectory_pair = TrajectoryPair.parse_obj(doc)
                     preference = doc.get('preference', None)
+                    doc['id'] = doc.pop('_id')
+                    trajectory_pair = TrajectoryPair.from_db(doc)
                     results.append((trajectory_pair, preference))
                 except Exception as e:
                     logging.error(f"Error processing document {doc['_id']}: {e}")
                     continue
-
             return results
 
         except errors.ConnectionFailure:

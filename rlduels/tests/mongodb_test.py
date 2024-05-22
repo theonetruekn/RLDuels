@@ -50,14 +50,41 @@ def test_update_multiple_entries(mock_db, multiple_trajectory_pairs):
         updated_doc = mock_db.collection.find_one({"_id": str(tp.id)})
         assert updated_doc and updated_doc['preference'] is True
 
-def test_gather_preferences(mock_db, multiple_trajectory_pairs):
-    # Insert entries with preferences
-    for idx, tp in enumerate(multiple_trajectory_pairs):
-        tp.preference = idx % 2 == 0  # Alternate preferences
+def test_update_entry(mock_db, multiple_trajectory_pairs):
+    for tp in multiple_trajectory_pairs:
         mock_db.add_entry(tp)
+    
+    for idx, tp in enumerate(multiple_trajectory_pairs):
+        new_preference = 1 if idx % 2 == 0 else 0
+        new_skipped = idx % 2 == 1
+        tp.preference = new_preference
+        tp.skipped = new_skipped
+
+        success_message, error = mock_db.update_entry(tp)
+        assert success_message is not None
+        assert error is None
+
+        updated_tp, _ = next((t, p) for t, p in mock_db.gather_preferences() if t.id == tp.id)
+        assert updated_tp.preference == new_preference
+        assert updated_tp.skipped == new_skipped
+
+def test_gather_preferences(mock_db, multiple_trajectory_pairs):
+    for tp in multiple_trajectory_pairs:
+        mock_db.add_entry(tp)
+    
+    uuid_to_preference = {}
+    for idx, tp in enumerate(multiple_trajectory_pairs):
+        new_preference = 1 if idx % 2 == 0 else 0
+        tp.preference = new_preference
+        uuid_to_preference[tp.id] = new_preference
+
+        success_message, error = mock_db.update_entry(tp)
+        assert success_message is not None
+        assert error is None
 
     results = mock_db.gather_preferences()
     assert len(results) == len(multiple_trajectory_pairs)
-    for (tp, preference) in results:
-        expected_preference = tp.id % 2 == 0
-        assert preference == expected_preference
+    
+    for tp, preference in results:
+        expected_preference = uuid_to_preference.get(tp.id)
+        assert preference == expected_preference, f"Expected {expected_preference}"
