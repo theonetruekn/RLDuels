@@ -62,11 +62,18 @@ class Transition(BaseModel):
         state = NDArray(array=data['state']['array'])
         action = NDArray(array=data['action']['array'])
         next_state = NDArray(array=data['next_state']['array'])
-        reward = data.get('reward')
-        terminated = data.get('terminated')
-        truncated = data.get('truncated')
+        reward = data['reward']
+        terminated = data['terminated']
+        truncated = data['truncated']
 
-        return cls(state=state, action=action, next_state=next_state, reward=reward, terminated=terminated, truncated=truncated)
+        return cls(
+            state=state,
+            action=action,
+            next_state=next_state,
+            reward=reward,
+            terminated=terminated,
+            truncated=truncated
+        )
 
     def unpack(self):
         return (self.get_state(), self.get_action(), self.reward, self.terminated, self.truncated, self.get_next_state())
@@ -78,8 +85,12 @@ class Trajectory(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict):
-        data['transitions'] = [Transition.from_dict(**t) if isinstance(t, dict) else t for t in data.get('transitions', [])]
-        return cls(**data)
+        transitions = [Transition.from_dict(t) for t in data.get('transitions', [])]
+        return cls(
+            env_name=data['env_name'],
+            information=data['information'],
+            transitions=transitions
+        )
 
     def get_reward(self):
         return sum(transition.reward for transition in self.transitions)
