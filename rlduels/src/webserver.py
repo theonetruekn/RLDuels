@@ -17,10 +17,8 @@ from flask_cors import CORS
 
 from src.DataHandling.database_manager import DBManager, MongoDBManager
 from src.DataHandling.trajectory_pair import Transition, Trajectory, TrajectoryPair, get_reward
-from src.DataHandling.simulator import Simulator
 from src.DataHandling.buffered_queue_manager import BufferedQueueManager
 from src.DataHandling.video_extractor import VideoExtractor
-from src.DataHandling.video_streamer import VideoStreamer
 
 """
 This script manages a web server created to allow users to interact with a Reinforcement Learning (RL) environment via a WebUI.
@@ -31,15 +29,13 @@ Constants:
 
 Global Variables:
     db_manager (DBManager): Manages database operations, handling user preferences and trajectory pair data.
-    simulator (Simulator): Facilitates the generation of trajectory pairs by simulating interactions in the RL environment.
-    video_streamer (VideoStreamer): Streams and records trajectory pairs from the RL environment, used when initial pairs are not provided.
     video_extractor (VideoExtractor): Extracts and records videos from given trajectory pairs for user interaction.
     env (gym.Env): An instance of a gym environment used for simulations.
     buffered_queue (BufferedQueueManager): Manages a queue of trajectory pairs and associated videos for user evaluation.
     current_entry: The current trajectory pair being evaluated by the user.
 
 Functions:
-    initialize_app(pairs): Initializes the application, setting up the database, simulator, and video handlers.
+    initialize_app(pairs): Initializes the application, setting up the database, and video handlers.
     index(): The main route for the web server, serving the index page with configuration settings.
     get_next_video_pair(): Endpoint to retrieve the next pair of videos for user evaluation from the buffered queue.
     update_preference(): Endpoint to update the user's preference for the currently viewed trajectory pair.
@@ -65,9 +61,6 @@ RESULT_FILE = config["RESULT_FILE"]
 
 # Global variables
 db_manager = None
-simulator = None
-video_streamer = None
-video_extractor = None
 buffered_queue = None
 current_entry = None
 
@@ -75,7 +68,7 @@ app = Flask(__name__)
 CORS(app)
 
 def initialize_app(pairs):
-    global db_manager, simulator, video_streamer, env, video_extractor, buffered_queue
+    global db_manager, env, video_extractor, buffered_queue
 
     db_manager = MongoDBManager()
 
@@ -85,25 +78,14 @@ def initialize_app(pairs):
             ENV,
             render_mode="rgb_array"
         )
-        simulator = Simulator(env = env, agent = None, frame_rate = FRAME_RATE, run_speed_factor = RUN_SPEED_FACTOR)
-        video_streamer = VideoStreamer(db_manager=db_manager, simulator=simulator, seed=420)
-        video_streamer.stream_env(MAX_ENTRIES)
+        #TODO Populate
         env.close()
     else:
         for pair in pairs:
             print(db_manager.add_entry(pair))
 
     # Start a new env, only used in the background thread on the queue
-    video_extractor = VideoExtractor(
-        gym.make(
-            ENV,
-            render_mode="rgb_array"
-        ),
-        VIDEO_FOLDER,
-        FRAME_RATE, 
-        RUN_SPEED_FACTOR
-    )
-    buffered_queue = BufferedQueueManager(db_manager, video_extractor, n=MAX_QUEUE_SIZE, daemon=True)
+    buffered_queue = BufferedQueueManager(db_manager, n=MAX_QUEUE_SIZE, daemon=True)
 
 
 @app.route('/')
@@ -150,15 +132,15 @@ def get_current_video_pair():
     global current_entry
     try:
         if current_entry is None or current_entry.preference is not None:
-            print("Getting next entry from the queue")
+            logging.debug("Getting next entry from the queue")
             if current_entry is not None:
                 current_entry.delete_videos()
             current_entry = buffered_queue.get_next_entry()
-            print(current_entry)
+            logging.debug(current_entry)
         else:
-            print("No Preference was set, returning same videos")
+            logging.debug("No Preference was set, returning same videos")
 
-        print(f"Current Entry: {current_entry.video1}, {current_entry.video2}")
+        logging.debug(f"Current Entry: {current_entry.video1}, {current_entry.video2}")
 
         video_file_name_1 = os.path.basename(current_entry.video1)
         video_file_name_2 = os.path.basename(current_entry.video2)
@@ -196,7 +178,7 @@ def update_preference():
         elif preference == "equal":
             current_entry.prefer_no_video()
 
-        print(db_manager.update_entry(current_entry))
+        logging.debug(db_manager.update_entry(current_entry))
 
         return jsonify({"success": True, "message": "Preference updated successfully."}), 200
     else: 
@@ -217,10 +199,10 @@ def skip_pair():
     global current_entry
     try:
         current_entry.skip()
-        print(db_manager.update_entry(current_entry))
+        logging.debug(db_manager.update_entry(current_entry))
         return jsonify({"success": True, "message": "Video pair skipped successfully."}), 200
     except Exception as e:
-        print(f"Error skipping video pair: {e}")
+        logging.debug(f"Error skipping video pair: {e}")
         return jsonify({"success": False, "message": "Failed to skip video pair."}), 500
 
 @app.route('/get_trimmed_timestamps', methods=['POST'])

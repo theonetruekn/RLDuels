@@ -116,14 +116,3 @@ class AILP_Adapter(Adapter):
         trajectory_pairs = [self._convert(pair, env) for pair in pairs]
         
         return trajectory_pairs
-
-
-if __name__ == "__main__":
-    # here we use mock input
-    adapter = AILP_Adapter()
-    input_dict = {
-        'option1': np.load("option1.npy"),
-        "option2": np.load("option2.npy"),
-        "env": None
-    }
-    adapter.run(**input_dict)
