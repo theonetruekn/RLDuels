@@ -44,6 +44,14 @@ class DBManager(ABC):
     def delete_entry(self):
         pass
 
+    @abstractmethod
+    def get_next_entry(self):
+        pass
+
+    @abstractmethod
+    def gather_preferences(self):
+        pass
+
 class MongoDBManager(DBManager):
 
     def __init__(self, debug=True, test=False, client=None):
@@ -68,7 +76,6 @@ class MongoDBManager(DBManager):
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE
             )
-            
             time.sleep(0.5)
             if process.poll() is not None:
                 stderr = process.stderr.read().decode()
@@ -182,30 +189,29 @@ class MongoDBManager(DBManager):
         Returns:
             Tuple[Optional[TrajectoryPair], Optional[str]]: The next trajectory pair if available, and None or error message otherwise.
         """
-        #try:
-        logging.debug("Getting next entry.")
-        base_query = {"preference": None, "skipped": False}
+        try:
+            logging.debug("Getting next entry.")
+            base_query = {"preference": None, "skipped": False}
 
-        if self.id_of_current_video is not None:
-            base_query["_id"] = {"$gt": self.id_of_current_video}
+            if self.id_of_current_video is not None:
+                base_query["_id"] = {"$gt": self.id_of_current_video}
 
-        entry = self.collection.find_one(base_query, sort=[('_id', 1)])
-        
-        if entry:
-            logging.debug("Found Entry in DB.")
-            self.id_of_current_video = entry["_id"]
+            entry = self.collection.find_one(base_query, sort=[('_id', 1)])
+            
+            if entry:
+                logging.debug("Found Entry in DB.")
+                self.id_of_current_video = entry["_id"]
 
-            entry['id'] = entry.pop('_id') # Rename as Pydantic expects id, not _id
-            trajectory_pair = TrajectoryPair.from_db(entry)
-            return trajectory_pair, None
-        else:
-            return None, "No more unprocessed entries found."
-        #except errors.ConnectionFailure:
-        #    return None, "Connection to DB could not be made."
-        #except Exception as e:
-        #    return None, f"An error occurred getting the next entry: {str(e)}"
+                entry['id'] = entry.pop('_id')
+                trajectory_pair = TrajectoryPair.from_db(entry)
+                return trajectory_pair, None
+            else:
+                return None, "No more unprocessed entries found."
+        except errors.ConnectionFailure:
+            return None, "Connection to DB could not be made."
+        except Exception as e:
+            return None, f"An error occurred getting the next entry: {str(e)}"
 
-    
     def gather_preferences(self) -> List[Tuple[Optional[TrajectoryPair], Optional[float]]]:
         """
         Retrieves each entry from the database and collects the 'preference' attribute and the TrajectoryPair.

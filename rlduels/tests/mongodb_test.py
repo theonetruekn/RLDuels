@@ -88,3 +88,92 @@ def test_gather_preferences(mock_db, multiple_trajectory_pairs):
     for tp, preference in results:
         expected_preference = uuid_to_preference.get(tp.id)
         assert preference == expected_preference, f"Expected {expected_preference}"
+
+def test_get_next_entry(mock_db, multiple_trajectory_pairs):
+    added_ids = set()
+    for tp in multiple_trajectory_pairs:
+        mock_db.add_entry(tp)
+        added_ids.add(str(tp.id))
+    
+    retrieved_ids = set()
+    
+    for _ in multiple_trajectory_pairs:
+        next_tp, error = mock_db.get_next_entry()
+        assert next_tp is not None, "Expected an entry but got None"
+        assert error is None, f"Expected no error but got: {error}"
+        
+        retrieved_ids.add(str(next_tp.id))
+    
+    # Ensure all added entries were retrieved
+    assert added_ids == retrieved_ids, f"Expected IDs {added_ids} but got {retrieved_ids}"
+    
+    # Ensure no more entries are left
+    next_tp, error = mock_db.get_next_entry()
+    assert next_tp is None, "Expected None but got an entry"
+    assert error == "No more unprocessed entries found.", f"Expected 'No more unprocessed entries found.' but got: {error}"
+
+def test_get_next_entry_with_preferences(mock_db, multiple_trajectory_pairs):
+    # Insert multiple entries and set preferences for some
+    for tp in multiple_trajectory_pairs:
+        mock_db.add_entry(tp)
+
+    # Set preference for the first entry
+    first_entry = multiple_trajectory_pairs[0]
+    first_entry.preference = True
+    mock_db.update_entry(first_entry)
+
+    # Track IDs
+    added_ids = {str(tp.id) for tp in multiple_trajectory_pairs}
+    retrieved_ids = set()
+
+    # Retrieve entries and skip the first one
+    for _ in range(1, len(multiple_trajectory_pairs)):
+        next_tp, error = mock_db.get_next_entry()
+        assert next_tp is not None, "Expected an entry but got None"
+        assert error is None, f"Expected no error but got: {error}"
+        
+        retrieved_ids.add(str(next_tp.id))
+    
+    # The first entry should not be in retrieved_ids
+    added_ids.remove(str(first_entry.id))
+    
+    # Ensure all added entries (excluding the first one) were retrieved
+    assert added_ids == retrieved_ids, f"Expected IDs {added_ids} but got {retrieved_ids}"
+    
+    # Ensure no more entries are left
+    next_tp, error = mock_db.get_next_entry()
+    assert next_tp is None, "Expected None but got an entry"
+    assert error == "No more unprocessed entries found.", f"Expected 'No more unprocessed entries found.' but got: {error}"
+
+def test_get_next_entry_with_skipped_entries(mock_db, multiple_trajectory_pairs):
+    # Insert multiple entries and mark some as skipped
+    for tp in multiple_trajectory_pairs:
+        mock_db.add_entry(tp)
+
+    # Skip the first entry
+    first_entry = multiple_trajectory_pairs[0]
+    first_entry.skipped = True
+    mock_db.update_entry(first_entry)
+
+    # Track IDs
+    added_ids = {str(tp.id) for tp in multiple_trajectory_pairs}
+    retrieved_ids = set()
+
+    # Retrieve entries and skip the first one
+    for _ in range(1, len(multiple_trajectory_pairs)):
+        next_tp, error = mock_db.get_next_entry()
+        assert next_tp is not None, "Expected an entry but got None"
+        assert error is None, f"Expected no error but got: {error}"
+        
+        retrieved_ids.add(str(next_tp.id))
+    
+    # The first entry should not be in retrieved_ids
+    added_ids.remove(str(first_entry.id))
+    
+    # Ensure all added entries (excluding the first one) were retrieved
+    assert added_ids == retrieved_ids, f"Expected IDs {added_ids} but got {retrieved_ids}"
+    
+    # Ensure no more entries are left
+    next_tp, error = mock_db.get_next_entry()
+    assert next_tp is None, "Expected None but got an entry"
+    assert error == "No more unprocessed entries found.", f"Expected 'No more unprocessed entries found.' but got: {error}"
