@@ -1,57 +1,21 @@
-#TODO: Refactor
-#TODO: Migrate to FastAPI!
-
-import sys
 import os
-import signal
-import threading
-import numpy as np
-import shutil
+import logging
 import yaml
-import traceback
-import subprocess
 import gymnasium as gym
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-from flask import Flask, jsonify, request, render_template
-from flask_cors import CORS
+from rlduels.src.database.database_manager import DBManager, MongoDBManager
+from rlduels.src.primitives.trajectory_pair import TrajectoryPair
+from rlduels.src.buffered_queue_manager import BufferedQueueManager
 
-from src.DataHandling.database_manager import DBManager, MongoDBManager
-from src.DataHandling.trajectory_pair import Transition, Trajectory, TrajectoryPair, get_reward
-from src.DataHandling.buffered_queue_manager import BufferedQueueManager
-from src.DataHandling.video_extractor import VideoExtractor
-
-"""
-This script manages a web server created to allow users to interact with a Reinforcement Learning (RL) environment via a WebUI.
-Users can select preferences, view and interact with trajectory pairs generated from the RL environment, and provide feedback.
-
-Constants:
-    CONFIG_PATH: The file path to the configuration file 'config.yaml' which contains various settings for the application.
-
-Global Variables:
-    db_manager (DBManager): Manages database operations, handling user preferences and trajectory pair data.
-    video_extractor (VideoExtractor): Extracts and records videos from given trajectory pairs for user interaction.
-    env (gym.Env): An instance of a gym environment used for simulations.
-    buffered_queue (BufferedQueueManager): Manages a queue of trajectory pairs and associated videos for user evaluation.
-    current_entry: The current trajectory pair being evaluated by the user.
-
-Functions:
-    initialize_app(pairs): Initializes the application, setting up the database, and video handlers.
-    index(): The main route for the web server, serving the index page with configuration settings.
-    get_next_video_pair(): Endpoint to retrieve the next pair of videos for user evaluation from the buffered queue.
-    update_preference(): Endpoint to update the user's preference for the currently viewed trajectory pair.
-    skip_pair(): Endpoint to skip the current video pair and fetch the next pair from the queue.
-    get_trimmed_timestamps(): Endpoint to receive trimmed timestamps for video pairs, allowing users to specify relevant segments.
-    shutdown(): Utility function to shut down the Flask server gracefully.
-    terminate(): Endpoint to terminate the web server, saving results and closing database connections.
-    run_webserver(pairs): Starts the Flask web server in a separate thread, optionally initializing it with a set of trajectory pairs.
-
-The web server provides a user-friendly interface for interacting with trajectory pairs, enabling users to view, evaluate, and provide feedback on RL-generated trajectories.
-"""
 CONFIG_PATH = 'config.yaml'
 with open(CONFIG_PATH, 'r') as config_file:
     config = yaml.safe_load(config_file)
 
-# Constants
+# Constants read from config
 VIDEO_FOLDER = config['VIDEO_FOLDER']
 FRAME_RATE = config['FRAME_RATE']
 RUN_SPEED_FACTOR = config['RUN_SPEED_FACTOR']
@@ -60,36 +24,40 @@ MAX_QUEUE_SIZE = config['MAX_QUEUE_SIZE']
 RESULT_FILE = config["RESULT_FILE"]
 
 # Global variables
-db_manager = None
-buffered_queue = None
-current_entry = None
+db_manager: DBManager = None
+buffered_queue: BufferedQueueManager = None
+current_entry: TrajectoryPair = None
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
+class PreferenceUpdate(BaseModel):
+    preference: str
+
+class Timestamps(BaseModel):
+    video1_start: float
+    video1_end: float
+    video2_start: float
+    video2_end: float
 
 def initialize_app(pairs):
     global db_manager, env, video_extractor, buffered_queue
 
     db_manager = MongoDBManager()
 
-    # Populate the database with some entries
-    if pairs is None:
-        env = gym.make(
-            ENV,
-            render_mode="rgb_array"
-        )
-        #TODO Populate
-        env.close()
-    else:
-        for pair in pairs:
-            print(db_manager.add_entry(pair))
+    for pair in pairs:
+        logging.info(db_manager.add_entry(pair))
 
-    # Start a new env, only used in the background thread on the queue
     buffered_queue = BufferedQueueManager(db_manager, n=MAX_QUEUE_SIZE, daemon=True)
 
-
-@app.route('/')
-def index():
+@app.get("/")
+async def index():
     """
     Serves the main index page of the web application. Loads configuration settings from a YAML file
     and provides them to the index template for rendering the user interface.
@@ -114,11 +82,10 @@ def index():
     else:
         raise Exception("No configuration file exists.")
 
-    return render_template('index.html', config=config_status)
+    return JSONResponse(content=config_status)
 
-
-@app.route('/get_current_video_pair')
-def get_current_video_pair():
+@app.get("/get_current_video_pair")
+async def get_current_video_pair():
     """
     Endpoint to retrieve the next pair of videos for user evaluation. Fetches the next entry from the
     buffered queue and returns the video file names to the client.
@@ -145,32 +112,31 @@ def get_current_video_pair():
         video_file_name_1 = os.path.basename(current_entry.video1)
         video_file_name_2 = os.path.basename(current_entry.video2)
 
-        return jsonify({
+        return JSONResponse(content={
             "video1": video_file_name_1, 
             "video2": video_file_name_2
-        }), 201
+        }, status_code=201)
     except IndexError:
-        return jsonify({"message": "The queue is empty"}), 500
+        raise HTTPException(status_code=500, detail="The queue is empty")
 
-@app.route('/get_rewards_for_trajectories')
-def display_rewards_for_trajectories():
+@app.get("/get_rewards_for_trajectories")
+async def display_rewards_for_trajectories():
     global current_entry
     try:
-        return jsonify({
+        return JSONResponse(content={
             "reward1": get_reward(current_entry.trajectory1),
             "reward2": get_reward(current_entry.trajectory2)
-        }), 201
+        }, status_code=201)
     except Exception as e:
-        print(f"Error getting the rewards for the trajectories: {e}")
-        return jsonify({"success": False, "message": "Failed to display rewards."}), 500
+        logging.error(f"Error getting the rewards for the trajectories: {e}")
+        raise HTTPException(status_code=500, detail="Failed to display rewards.")
 
-@app.route('/update_preference', methods=['POST'])
-def update_preference():
+@app.post("/update_preference")
+async def update_preference(request: PreferenceUpdate):
     global current_entry
-    print("Preference is being updated", current_entry)
+    logging.debug("Preference is being updated", current_entry)
     if current_entry is not None:
-        preference = request.form.get('preference')
-
+        preference = request.preference
         if preference == "video1":
             current_entry.prefer_video1()
         elif preference == "video2":
@@ -180,12 +146,12 @@ def update_preference():
 
         logging.debug(db_manager.update_entry(current_entry))
 
-        return jsonify({"success": True, "message": "Preference updated successfully."}), 200
+        return JSONResponse(content={"success": True, "message": "Preference updated successfully."}, status_code=200)
     else: 
-        return jsonify({"message": "The queue is empty"}), 500
+        raise HTTPException(status_code=500, detail="The queue is empty")
 
-@app.route('/skip_video_pair')
-def skip_pair():
+@app.get("/skip_video_pair")
+async def skip_pair():
     """
     Endpoint to skip the current video pair and fetch the next pair from the queue. Marks the current trajectory
     pair as skipped in the database.
@@ -200,67 +166,49 @@ def skip_pair():
     try:
         current_entry.skip()
         logging.debug(db_manager.update_entry(current_entry))
-        return jsonify({"success": True, "message": "Video pair skipped successfully."}), 200
+        return JSONResponse(content={"success": True, "message": "Video pair skipped successfully."}, status_code=200)
     except Exception as e:
-        logging.debug(f"Error skipping video pair: {e}")
-        return jsonify({"success": False, "message": "Failed to skip video pair."}), 500
+        logging.error(f"Error skipping video pair: {e}")
+        raise HTTPException(status_code=500, detail="Failed to skip video pair.")
 
-@app.route('/get_trimmed_timestamps', methods=['POST'])
-def get_trimmed_timestamps():
+#@app.post("/get_trimmed_timestamps")
+#async def get_trimmed_timestamps(timestamps: Timestamps):
+#    """
+#    Endpoint to receive trimmed timestamps for video pairs, allowing users to specify relevant segments
+#    of the trajectory for evaluation. Updates the trajectory entry in the database with the new timestamps.
+#
+#    Parameters:
+#    None, but expects a JSON payload with start and end timestamps for both videos in the pair.
+#
+#    Returns:
+#    JSON response indicating the success of receiving and processing the timestamps.
+#    """
+#    global current_entry
+#
+#    video1_start = timestamps.video1_start
+#    video1_end = timestamps.video1_end
+#    video2_start = timestamps.video2_start
+#    video2_end = timestamps.video2_end
+#
+#    db_manager.edit_entry(current_entry)
+#    raise NotImplementedError
+#    return JSONResponse(content={"status": "success", "message": "Timestamps received"}, status_code=200)
 
-    """
-    Endpoint to receive trimmed timestamps for video pairs, allowing users to specify relevant segments
-    of the trajectory for evaluation. Updates the trajectory entry in the database with the new timestamps.
 
-    Parameters:
-    None, but expects a JSON payload with start and end timestamps for both videos in the pair.
-
-    Returns:
-    JSON response indicating the success of receiving and processing the timestamps.
-    """
-
-    data = request.json
-
-    video1_start = data['video1_start']
-    video1_end = data['video1_end']
-    video2_start = data['video2_start']
-    video2_end = data['video2_end']
-
-    db_manager.edit_entry(current_entry)
-
-    return jsonify({"status": "success", "message": "Timestamps received"}), 200
-
-def shutdown():
-    """Shuts down the server from a Flask route."""
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func is None:
-        raise RuntimeError('Not running with the Werkzeug Server')
-    func()
-
-@app.route('/terminate', methods=['POST'])
-def terminate():
+@app.post("/terminate")
+async def terminate():
     global buffered_queue, db_manager, current_entry
-    # Before shutting down, write the results to a text file
-
-    result = db_manager.gather_results()
-
-    if None in result and not config["allowSkipping"]:
-        return jsonify({"status": "fail", "message": "Evaluate all pairs."}), 500
-
-    with open(RESULT_FILE, 'w') as file:
-        file.write(str(result))
+    result = db_manager.gather_preferences()
     
     current_entry.delete_videos()
     buffered_queue.close_routine()
     db_manager.close_db()
-    result = []
 
-    shutdown()
-    return jsonify({"status": "success", "message": "Terminated WebApp"}), 200
+    return JSONResponse(content={"status": "success", "message": "Terminated WebApp"}, status_code=200)
 
 def run_webserver(pairs=None):
     """
-    Starts the Flask web server, optionally initializing it with a set of trajectory pairs.
+    Starts the FastAPI web server, optionally initializing it with a set of trajectory pairs.
     Initializes the application components and starts the server to listen for incoming requests.
 
     Parameters:
@@ -269,7 +217,8 @@ def run_webserver(pairs=None):
     This function does not return as it starts a blocking server loop.
     """
     initialize_app(pairs)
-    app.run()
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 if __name__ == '__main__':
     run_webserver()

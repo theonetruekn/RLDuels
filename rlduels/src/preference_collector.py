@@ -1,58 +1,75 @@
-#TODO: Refactor
-
-import os
+from abc import ABC, abstractmethod
+import logging
+import requests
 import time
-import subprocess
 import threading
-import ast
+from typing import List
+
 import numpy as np
 import yaml
 
-from abc import ABC, abstractmethod
-from queue import Queue
-
-from src.frontend.webserver import run_webserver
-from src.DataHandling.trajectory_pair import Transition, Trajectory, TrajectoryPair
-
+from rlduels.src.primitives.trajectory_pair import (
+    Trajectory,
+    TrajectoryPair,
+    Transition,
+)
+from rlduels.src.webserver import run_webserver
 
 CONFIG_PATH = '../../config.yaml'
 
 with open(CONFIG_PATH, 'r') as config_file:
     config = yaml.safe_load(config_file)
 
-RESULT_FILE = config["RESULT_FILE"]
+WEB_SERVER_URL = config["WEBSERVER_URL"]
 
 class PreferenceCollector(ABC):
     
     def __init__(self):
-        pass
+        self.webserver_thread = None
+    
+    def is_webserver_running(self) -> bool:
+        try:
+            response = requests.get(f"{WEB_SERVER_URL}/healthcheck")
+            return response.status_code == 200
+        except ConnectionError:
+            return False
+
+    def start_webserver(self, traj_pairs: List[TrajectoryPair]):
+        if not self.is_webserver_running():
+            self.webserver_thread = threading.Thread(target=run_webserver, args=(traj_pairs,))
+            self.webserver_thread.start()
+            logging.info("Webserver started.")
+            
+            while not self.is_webserver_running():
+                logging.info("Waiting for the webserver to be ready...")
+                time.sleep(1)
+        else:
+            logging.info("Webserver is already running.")
 
     def start_collecting(self, **kwargs):
         traj_pairs = self.parse_inputs(**kwargs)
 
         assert all(isinstance(pair, TrajectoryPair) for pair in traj_pairs), "All elements in traj_pairs must be of type TrajectoryPair"
         
-        # Start the webserver
-        webserver_thread = threading.Thread(target=run_webserver, args=(traj_pairs,))
-        webserver_thread.start()
-        print("Webserver started.")
+        self.start_webserver(traj_pairs)
+        
+        while True:
+            try:
+                response = requests.get(f"{WEB_SERVER_URL}/get_preferences")
+                if response.status_code == 200:
+                    result = response.json()
+                    break
+            except ConnectionError:
+                logging.info("Waiting for a result to become ready")
+                time.sleep(1)
 
-        webserver_thread.join()
-        print("Finished giving preferences.")
-
-        with open(RESULT_FILE, 'r') as file:
-            results_as_string = file.read()
-
-        result = ast.literal_eval(results_as_string)
-        os.remove(RESULT_FILE)
-        print("Results:", result)
         return result
 
     @abstractmethod
-    def parse_inputs(self, **kwargs):
+    def parse_inputs(self, **kwargs) -> List[TrajectoryPair]:
         pass
 
-class AILP_Adapter(Adapter):
+class AILP_Adapter(PreferenceCollector):
     
     def __init__(self):
         pass
